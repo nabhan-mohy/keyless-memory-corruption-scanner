@@ -63,19 +63,28 @@ class AFLPlusPlusAdapter(FuzzerAdapter):
 
     def plan(self) -> tuple[list[str], dict[str, str]]:
         env = self._base_environment()
-        # Non-interactive, non-cpu-scaling-checked execution.  These are the
-        # documented AFL++ environment switches, not workarounds.
         env["AFL_NO_UI"] = "1"
         env["AFL_SKIP_CPUFREQ"] = "1"
         env["AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES"] = "1"
 
-        # AFL++ writes the sibling ``fuzzer_stats`` file to stdout-free stderr;
-        # the ``-M`` master flag keeps the output layout stable across versions.
+        # Uninstrumented binaries cannot run AFL++'s fork server.  Detect this
+        # and switch AFL++ into dumb mode automatically so that the campaign
+        # works regardless of how the target was built.
+        instrumented = self._is_afl_instrumented()
+        if not instrumented:
+            env["AFL_SKIP_BIN_CHECK"] = "1"
+            env["AFL_DUMB_FORKSRV"] = "1"
+
         command: list[str] = [
             "afl-fuzz",
             "-i", str(self._config.input_dir),
             "-o", str(self._config.output_dir),
         ]
+
+        if not instrumented:
+            # ``-n`` tells AFL++ to run the target as a plain subprocess
+            # instead of trying the fork-server handshake.
+            command.append("-n")
 
         if self._config.duration_seconds is not None:
             command += ["-V", str(self._config.duration_seconds)]
@@ -200,6 +209,46 @@ class AFLPlusPlusAdapter(FuzzerAdapter):
             cycles_done=_int("cycles_done"),
             raw=raw,
         )
+
+    # ------------------------------------------------------------------ detection
+
+    def _is_afl_instrumented(self) -> bool:
+        """Return True if the target binary was built with AFL++ instrumentation.
+
+        AFL++ fuzzes instrumented binaries through a *fork server*; the fork
+        server lives in ``afl-compiler-rt.o``, which is linked into every
+        binary produced by ``afl-clang-fast`` / ``afl-clang-lto`` / ``afl-gcc``.
+        An uninstrumented binary cannot speak that protocol, so AFL++ aborts
+        with ``Fork server handshake failed`` unless told to use dumb mode.
+
+        We detect instrumentation by looking for the AFL++ runtime symbol
+        ``__afl_area_ptr``.  If ``nm`` is unavailable, we conservatively
+        assume the binary is instrumented and let the user's environment
+        decide.
+        """
+        import shutil
+        import subprocess
+
+        nm = shutil.which("nm")
+        if nm is None:
+            return True
+
+        try:
+            completed = subprocess.run(
+                [nm, str(self._config.target_binary)],
+                capture_output=True,
+                text=True,
+                timeout=5.0,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return True
+
+        return (
+            "__afl_area_ptr" in completed.stdout
+            or "__afl_prev_loc" in completed.stdout
+        )
+
 
     # ------------------------------------------------------------------ artifacts
 

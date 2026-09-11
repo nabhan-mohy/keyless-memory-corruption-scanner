@@ -118,6 +118,33 @@ class WorkerResult:
 class CampaignWorker:
     """Runs one fuzzer instance and collects its crashes."""
 
+    def _fuzzer_environment(self) -> dict[str, str]:
+        """Return the environment the fuzzer should see.
+
+        AFL++ refuses to start when ``ASAN_OPTIONS`` contains ``symbolize=1``.
+        We rewrite any ``*_OPTIONS`` variable so ``symbolize=0`` before the
+        fuzzer is launched.  The detector, which re-runs crash artifacts,
+        still gets the original environment with ``symbolize=1``.
+        """
+        env = dict(self._config.environment)
+        for key in (
+            "ASAN_OPTIONS",
+            "UBSAN_OPTIONS",
+            "LSAN_OPTIONS",
+            "MSAN_OPTIONS",
+            "TSAN_OPTIONS",
+        ):
+            if key not in env:
+                continue
+            parts = [
+                piece
+                for piece in env[key].split(":")
+                if not piece.startswith("symbolize=")
+            ]
+            parts.append("symbolize=0")
+            env[key] = ":".join(parts)
+        return env
+
     def __init__(
         self,
         config: WorkerConfig,

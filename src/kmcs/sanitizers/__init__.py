@@ -20,6 +20,16 @@ from kmcs.sanitizers.base import (
     all_adapters,
 )
 
+# Importing the adapter modules triggers their ``@register`` decorators,
+# which populate :data:`kmcs.sanitizers.base._REGISTRY`.  Without these
+# imports, ``SanitizerRegistry.for_kind()`` returns nothing even though the
+# adapters exist on disk.
+from kmcs.sanitizers.asan import AddressSanitizerAdapter  # noqa: F401
+from kmcs.sanitizers.lsan import LeakSanitizerAdapter  # noqa: F401
+from kmcs.sanitizers.msan import MemorySanitizerAdapter  # noqa: F401
+from kmcs.sanitizers.tsan import ThreadSanitizerAdapter  # noqa: F401
+from kmcs.sanitizers.ubsan import UndefinedBehaviorSanitizerAdapter  # noqa: F401
+
 __all__ = [
     "SanitizerAdapter",
     "SanitizerAvailability",
@@ -27,4 +37,9 @@ __all__ = [
     "SanitizerRegistry",
     "get_adapter",
     "all_adapters",
+    "AddressSanitizerAdapter",
+    "LeakSanitizerAdapter",
+    "MemorySanitizerAdapter",
+    "ThreadSanitizerAdapter",
+    "UndefinedBehaviorSanitizerAdapter",
 ]

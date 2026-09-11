@@ -23,7 +23,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-
+from kmcs.sanitizers import SanitizerRegistry
 from pydantic import BaseModel, ConfigDict, Field
 
 from kmcs.analysis.crash_detector import CrashDetector
@@ -154,6 +154,32 @@ class CampaignScheduler:
 
     # ------------------------------------------------------------------ lifecycle
 
+    def _build_sanitizer_environment(self) -> dict[str, str]:
+        """Return sanitizer runtime options for the campaign's sanitizer list.
+
+        ASan, UBSan, LSan, MSan, and TSan each read their runtime options
+        from an environment variable (``ASAN_OPTIONS``, ``UBSAN_OPTIONS``,
+        ...).  When a campaign was configured with a sanitizer list, KMCS
+        applies the same options the target was built with, so a crash
+        detected by the fuzzer carries the same evidence a direct run would
+        carry.  ``abort_on_error`` matters here: without it, ASan logs the
+        error and returns zero, and the fuzzer never records a crash.
+        """
+        env: dict[str, str] = {}
+        for kind in self._config.sanitizers:
+            try:
+                adapter = SanitizerRegistry.for_kind(kind)
+            except Exception:  # noqa: BLE001 - unknown kinds are skipped
+                continue
+            env = adapter.build_environment(
+                env,
+                abort_on_error=True,
+                halt_on_error=True,
+                symbolize=False,
+            )
+        return env
+
+
     def prepare(self) -> None:
         """Create output directories and worker instances.
 
@@ -165,7 +191,7 @@ class CampaignScheduler:
             shutil.rmtree(output_root)
         output_root.mkdir(parents=True, exist_ok=True)
 
-        self._telemetry_snapshot_initial()
+        sanitizer_env = self._build_sanitizer_environment()
 
         for index in range(self._config.workers):
             worker_output = self._config.worker_output_dir(index)

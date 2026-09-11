@@ -3,7 +3,7 @@
 # Do not use this in production.  These programs are deliberately broken.
 
 CC ?= clang
-CFLAGS ?= -g -O1 -fno-omit-frame-pointer -Wall -Wextra \
+CFLAGS ?= -g -O0 -fno-omit-frame-pointer -Wall -Wextra \
           -fsanitize=address,undefined
 LDFLAGS ?= -fsanitize=address,undefined
 
