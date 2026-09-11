@@ -1,9 +1,8 @@
 """The Settings screen.
 
-Read-only view of the current KMCS configuration: workspace paths,
-logging level, and the database URL.  Settings cannot be edited from the
-TUI in this release; the screen exists so a user can see exactly where
-everything lives.
+A read-only view of the current KMCS configuration and the state of the
+database.  The detail pane shows the selected setting plus a short
+description of what it controls.
 """
 
 from __future__ import annotations
@@ -12,6 +11,19 @@ from collections.abc import Sequence
 from typing import Any
 
 from kmcs.tui.screens.base import KMCSListScreen
+
+
+_SETTING_DESCRIPTIONS: dict[str, str] = {
+    "base dir": "Root directory for all KMCS data.",
+    "database file": "SQLite file that stores targets, campaigns, and findings.",
+    "database URL": "SQLAlchemy URL used to open the database.",
+    "logs directory": "Where KMCS writes its log file.",
+    "crashes directory": "Where preserved crash evidence is written.",
+    "corpus directory": "Where imported corpus files are stored.",
+    "reports directory": "Where generated reports are written.",
+    "log level": "Python logging level for the CLI and TUI.",
+    "create missing dirs": "Whether KMCS creates missing directories at startup.",
+}
 
 
 class SettingsScreen(KMCSListScreen):
@@ -40,15 +52,40 @@ class SettingsScreen(KMCSListScreen):
             ("create missing dirs", str(config.create_missing_dirs)),
         ]
 
+    def summary_line(self) -> str:
+        return (
+            f"read-only · {len(list(self.ctx.config.directories))} paths · "
+            f"log level {self.ctx.config.log_level}"
+        )
+
     def detail_pairs(
         self, row: Sequence[Any] | None
     ) -> list[tuple[str, str]] | None:
         if row is None:
             return None
-        return [
-            ("Key", str(row[0])),
-            ("Value", str(row[1])),
+        key = str(row[0])
+        value = str(row[1])
+        pairs: list[tuple[str, str]] = [
+            ("Setting", key),
+            ("Value", value),
         ]
+        desc = _SETTING_DESCRIPTIONS.get(key)
+        if desc:
+            pairs.append(("Description", desc))
+
+        if key == "database file" or key == "database URL":
+            try:
+                health = self.ctx.database.health_check()
+                pairs += [
+                    ("Health", "ok" if health.ok else "FAILED"),
+                    ("Schema version", str(health.schema_version)),
+                    ("Integrity", health.integrity or "—"),
+                    ("Tables present", ", ".join(health.tables_present)),
+                ]
+            except Exception as exc:
+                pairs.append(("Health check error", str(exc)))
+
+        return pairs
 
     def hint(self) -> str:
         return "[b]r[/b] refresh  [b]q[/b] quit  [b]1[/b] dashboard"

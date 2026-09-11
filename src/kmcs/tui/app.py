@@ -1,8 +1,8 @@
 """The KMCS TUI application.
 
 A Textual ``App`` that installs every screen at startup and switches
-between them with number-key bindings.  Each screen is a full-screen view
-over the same service layer the CLI uses.
+between them with number-key bindings.  Each screen owns its own CSS; the
+app-level CSS only sets the global background and text colour.
 """
 
 from __future__ import annotations
@@ -36,26 +36,6 @@ class KMCSApp(App[None]):
         background: $background;
         color: $foreground;
     }
-    #screen-title {
-        height: 1;
-        padding: 0 1;
-        color: $accent;
-        text-style: bold;
-    }
-    #summary {
-        height: 3;
-        padding: 1 1;
-        background: $surface;
-        color: $foreground;
-    }
-    #table, #recent-campaigns, #recent-findings {
-        height: 1fr;
-        border: round $panel;
-        padding: 0 1;
-    }
-    #detail {
-        height: 12;
-    }
     """
 
     TITLE = f"KMCS {__version__} — Keyless Memory-Corruption Scanner"
@@ -75,7 +55,6 @@ class KMCSApp(App[None]):
         ("ctrl+c", "quit", "Quit"),
     ]
 
-    # Screen name → class.  Textual reserves ``SCREENS``, hence the name.
     KMCS_SCREEN_CLASSES: dict[str, type[Screen]] = {
         "dashboard": DashboardScreen,
         "targets": TargetsScreen,
@@ -95,18 +74,14 @@ class KMCSApp(App[None]):
     def on_mount(self) -> None:
         self.register_theme(KMCS_THEME)
         self.theme = "kmcs"
-
         for name, cls in self.KMCS_SCREEN_CLASSES.items():
             screen = cls()
             self.install_screen(screen, name=name)
             self._screens[name] = screen
-
         self.push_screen("dashboard")
 
     def on_unmount(self) -> None:
         self.ctx.close()
-
-    # ------------------------------------------------------------------ actions
 
     def action_show(self, name: str) -> None:
         if name not in self._screens:
@@ -119,8 +94,6 @@ class KMCSApp(App[None]):
         refresh = getattr(self.screen, "refresh_data", None)
         if callable(refresh):
             refresh()
-
-    # ------------------------------------------------------------------ helpers
 
     def _current_screen_name(self) -> str | None:
         current = self.screen
@@ -138,18 +111,8 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="kmcs-tui",
         description="Keyless Memory-Corruption Scanner — terminal interface.",
     )
-    parser.add_argument(
-        "--base-dir",
-        type=Path,
-        default=None,
-        metavar="PATH",
-        help="Override the KMCS data directory.",
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"KMCS {__version__}",
-    )
+    parser.add_argument("--base-dir", type=Path, default=None, metavar="PATH")
+    parser.add_argument("--version", action="version", version=f"KMCS {__version__}")
     return parser
 
 

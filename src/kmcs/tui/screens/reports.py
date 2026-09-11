@@ -1,8 +1,8 @@
 """The Reports screen.
 
-Lists the five report formats KMCS can generate.  The detail pane shows
-what each format is for.  Pressing Enter on a row generates that report
-and writes it to the workspace's reports directory.
+Lists the five report formats KMCS can generate.  The detail pane describes
+each format.  Pressing Enter generates that report and writes it to the
+workspace's reports directory.
 """
 
 from __future__ import annotations
@@ -15,11 +15,11 @@ from kmcs.tui.screens.base import KMCSListScreen
 
 
 _FORMAT_DESCRIPTIONS: dict[str, str] = {
-    "json": "Machine-readable.  Stable schema, includes full evidence.",
-    "markdown": "Human-readable.  Ideal for pasting into a ticket or an issue.",
-    "csv": "Tabular.  Load into a spreadsheet for triage.",
-    "sarif": "SARIF 2.1.0.  Consumed by GitHub Code Scanning and Azure DevOps.",
-    "html": "Self-contained.  Single file, no JavaScript, print to PDF.",
+    "json": "Machine-readable JSON with a stable schema; includes full evidence.",
+    "markdown": "Human-readable Markdown; ideal for pasting into a ticket or issue.",
+    "csv": "Tabular CSV; load into a spreadsheet for triage.",
+    "sarif": "SARIF 2.1.0; consumed by GitHub Code Scanning and Azure DevOps.",
+    "html": "Self-contained HTML; single file, no JavaScript, print to PDF.",
 }
 
 
@@ -33,6 +33,7 @@ class ReportsScreen(KMCSListScreen):
         return (
             ("format", "Format"),
             ("extension", "Extension"),
+            ("media_type", "Media type"),
             ("description", "Description"),
         )
 
@@ -41,10 +42,19 @@ class ReportsScreen(KMCSListScreen):
             (
                 fmt.value,
                 fmt.default_extension,
+                fmt.media_type,
                 _FORMAT_DESCRIPTIONS.get(fmt.value, ""),
             )
             for fmt in ReportFormat
         ]
+
+    def summary_line(self) -> str:
+        count = len(list(ReportFormat))
+        return (
+            f"{count} format(s) · "
+            f"press Enter on a row to generate · "
+            f"output: {self.ctx.config.reports_path}"
+        )
 
     def detail_pairs(
         self, row: Sequence[Any] | None
@@ -60,14 +70,15 @@ class ReportsScreen(KMCSListScreen):
             ("Format", fmt.value),
             ("Extension", fmt.default_extension),
             ("Media type", fmt.media_type),
+            ("Output directory", str(self.ctx.config.reports_path)),
             (
                 "Description",
                 _FORMAT_DESCRIPTIONS.get(fmt.value, "(no description)"),
             ),
             (
-                "Action",
-                "Press Enter on this row to generate the report and write it "
-                "to the workspace's reports directory.",
+                "How to use",
+                "Press Enter on this row to generate the report. "
+                "The output path will appear here.",
             ),
         ]
 
@@ -80,8 +91,8 @@ class ReportsScreen(KMCSListScreen):
     # ------------------------------------------------------------------ actions
 
     def on_data_table_row_selected(self, event) -> None:  # type: ignore[no-untyped-def]
-        """Generate the selected report and write it to disk."""
-        row = self.query_one("#table").selected_row  # type: ignore[attr-defined]
+        table = self.query_one("#table-pane")  # type: ignore[attr-defined]
+        row = table.selected_row
         if row is None:
             return
         fmt_value = row[0]
@@ -92,19 +103,17 @@ class ReportsScreen(KMCSListScreen):
 
         output_dir = self.ctx.config.reports_path
         try:
-            rendered, written = self.ctx.reports.generate(
-                fmt, output_dir=output_dir
-            )
+            rendered, written = self.ctx.reports.generate(fmt, output_dir=output_dir)
         except Exception as exc:
-            self.query_one("#detail").set_text(  # type: ignore[attr-defined]
+            self.query_one("#detail-pane").set_text(  # type: ignore[attr-defined]
                 f"[red]Report generation failed:[/red]\n{exc}"
             )
             return
 
-        self.query_one("#detail").set_text(  # type: ignore[attr-defined]
-            f"[green]Report written.[/green]\n"
-            f"Format:    {fmt.value}\n"
-            f"File:      {written}\n"
-            f"Size:      {rendered.size_bytes} bytes\n"
-            f"Media:     {fmt.media_type}"
+        self.query_one("#detail-pane").set_text(  # type: ignore[attr-defined]
+            f"[green]Report written.[/green]\n\n"
+            f"Format:   {fmt.value}\n"
+            f"File:     {written}\n"
+            f"Size:     {rendered.size_bytes} bytes\n"
+            f"Media:    {fmt.media_type}"
         )
