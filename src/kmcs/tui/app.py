@@ -1,8 +1,8 @@
 """The KMCS TUI application.
 
-A Textual ``App`` that installs every screen at startup and switches between
-them with number-key bindings.  Each screen is a full-screen view over the
-same service layer the CLI uses.
+A Textual ``App`` that installs every screen at startup and switches
+between them with number-key bindings.  Each screen is a full-screen view
+over the same service layer the CLI uses.
 """
 
 from __future__ import annotations
@@ -17,19 +17,19 @@ from textual.screen import Screen
 
 from kmcs import __version__
 from kmcs.tui.context import TUIContext
+from kmcs.tui.screens.campaigns import CampaignsScreen
+from kmcs.tui.screens.corpora import CorporaScreen
+from kmcs.tui.screens.crashes import CrashesScreen
 from kmcs.tui.screens.dashboard import DashboardScreen
+from kmcs.tui.screens.findings import FindingsScreen
+from kmcs.tui.screens.reports import ReportsScreen
+from kmcs.tui.screens.settings import SettingsScreen
 from kmcs.tui.screens.targets import TargetsScreen
 from kmcs.tui.theme import KMCS_THEME
 
 
 class KMCSApp(App[None]):
-    """The main KMCS terminal application.
-
-    Screens are installed manually in ``_install_screens`` and switched with
-    ``_show``.  We deliberately avoid Textual's automatic ``SCREENS``
-    mechanism and the ``push_screen``/``switch_screen`` API in ``on_mount``,
-    because both can race with Textual's own default screen setup at startup.
-    """
+    """The main KMCS terminal application."""
 
     CSS = """
     Screen {
@@ -64,16 +64,27 @@ class KMCSApp(App[None]):
     BINDINGS = [
         ("1", "show('dashboard')", "Dashboard"),
         ("2", "show('targets')", "Targets"),
+        ("3", "show('corpora')", "Corpora"),
+        ("4", "show('campaigns')", "Campaigns"),
+        ("5", "show('crashes')", "Crashes"),
+        ("6", "show('findings')", "Findings"),
+        ("7", "show('reports')", "Reports"),
+        ("8", "show('settings')", "Settings"),
         ("r", "refresh", "Refresh"),
         ("q", "quit", "Quit"),
         ("ctrl+c", "quit", "Quit"),
     ]
 
-    # Screen name → class.  Populated into ``_screens`` during ``on_mount``.
-    # Deliberately NOT named ``SCREENS``; Textual reserves that name.
+    # Screen name → class.  Textual reserves ``SCREENS``, hence the name.
     KMCS_SCREEN_CLASSES: dict[str, type[Screen]] = {
         "dashboard": DashboardScreen,
         "targets": TargetsScreen,
+        "corpora": CorporaScreen,
+        "campaigns": CampaignsScreen,
+        "crashes": CrashesScreen,
+        "findings": FindingsScreen,
+        "reports": ReportsScreen,
+        "settings": SettingsScreen,
     }
 
     def __init__(self, ctx: TUIContext) -> None:
@@ -85,17 +96,11 @@ class KMCSApp(App[None]):
         self.register_theme(KMCS_THEME)
         self.theme = "kmcs"
 
-        # Install every screen up front.  ``install_screen`` in newer Textual
-        # versions may be awaitable; we do not need to await it because we
-        # only use the resulting screen later.
         for name, cls in self.KMCS_SCREEN_CLASSES.items():
             screen = cls()
             self.install_screen(screen, name=name)
             self._screens[name] = screen
 
-        # Switch to the initial screen.  ``push_screen`` is safe even when
-        # the default screen is still on the stack — it does not try to pop
-        # a callback.
         self.push_screen("dashboard")
 
     def on_unmount(self) -> None:
@@ -104,7 +109,6 @@ class KMCSApp(App[None]):
     # ------------------------------------------------------------------ actions
 
     def action_show(self, name: str) -> None:
-        """Switch to an installed screen by name."""
         if name not in self._screens:
             return
         if name == self._current_screen_name():
@@ -112,16 +116,13 @@ class KMCSApp(App[None]):
         self.switch_screen(name)
 
     def action_refresh(self) -> None:
-        """Ask the current screen to refresh its data."""
-        screen = self.screen
-        refresh = getattr(screen, "refresh_data", None)
+        refresh = getattr(self.screen, "refresh_data", None)
         if callable(refresh):
             refresh()
 
     # ------------------------------------------------------------------ helpers
 
     def _current_screen_name(self) -> str | None:
-        """Best-effort name of the currently active installed screen."""
         current = self.screen
         for name, screen in self._screens.items():
             if screen is current:
@@ -153,15 +154,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Entry point for the ``kmcs-tui`` console script."""
     args = _build_parser().parse_args(argv)
-
     try:
         ctx = TUIContext.build(base_dir=args.base_dir)
     except Exception as exc:
         print(f"kmcs-tui: startup failed: {exc}", file=sys.stderr)
         return 1
-
-    app = KMCSApp(ctx)
-    app.run()
+    KMCSApp(ctx).run()
     return 0
