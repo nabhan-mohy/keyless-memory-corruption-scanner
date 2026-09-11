@@ -1,0 +1,13 @@
+=================================================================
+==12345==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x6020000000b8 at pc 0x561f2a1b7b3d bp 0x7ffd8c8b3a10 sp 0x7ffd8c8b3a08
+WRITE of size 32 at 0x6020000000b8 thread T0
+    #0 0x561f2a1b7b3c in main /src/demo/vulnerable.c:18:5
+    #1 0x7f6a8b2b4082 in __libc_start_main /build/glibc/src/glibc-2.35/csu/libc-start.c:308:16
+
+0x6020000000b8 is located 0 bytes to the right of 8-byte region [0x6020000000b0,0x6020000000b8)
+allocated by thread T0 here:
+    #0 0x561f2a2031a7 in malloc /src/llvm-project/compiler-rt/lib/asan/asan_malloc_linux.cpp:69:3
+    #1 0x561f2a1b7a8c in main /src/demo/vulnerable.c:15:30
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow /src/demo/vulnerable.c:18:5 in main
+==12345==ABORTING

@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kmcs"
+version = "0.7.0"
+description = "Keyless Memory-Corruption Scanner — defensive fuzzing and memory-safety research platform"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "KMCS Project" }]
+keywords = ["security", "fuzzing", "memory-safety", "sanitizers", "afl", "asan", "sarif"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Testing",
+]
+
+dependencies = [
+    "pydantic>=2.6,<3",
+    "SQLAlchemy>=2.0,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+]
+
+[project.scripts]
+kmcs = "kmcs.main:main"
+
+[project.urls]
+Homepage = "https://github.com/kmcs-project/kmcs"
+Documentation = "https://github.com/kmcs-project/kmcs/blob/main/docs/architecture.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra --strict-markers --strict-config"
+filterwarnings = ["error::DeprecationWarning:kmcs.*"]
+markers = [
+    "integration: requires a real external tool (compiler, fuzzer, debugger)",
+    "slow: takes more than a few seconds",
+]
+
+[tool.coverage.run]
+source = ["src/kmcs"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "\\.\\.\\.",
+]

@@ -1,0 +1,4 @@
+/src/demo/overflow.c:14:15: runtime error: signed integer overflow: 2147483647 + 1 cannot be represented in type 'int'
+    #0 0x561f2a1b7b3c in compute /src/demo/overflow.c:14:15
+    #1 0x561f2a1b7c1a in main /src/demo/overflow.c:20:5
+

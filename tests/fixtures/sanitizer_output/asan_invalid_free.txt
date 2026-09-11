@@ -1,0 +1,8 @@
+==14000==ERROR: AddressSanitizer: attempting free on address which was not malloc()-ed: 0x7ffcd5e0d8b0 in thread T0
+    #0 0x561f2a2036a7 in free /src/llvm-project/compiler-rt/lib/asan/asan_malloc_linux.cpp:86:3
+    #1 0x561f2a1b7a4c in main /src/demo/invalid_free.c:14:5
+
+0x7ffcd5e0d8b0 is located on thread T0's stack
+SUMMARY: AddressSanitizer: attempting-free-on-address-which-was-not-malloc-ed /src/demo/invalid_free.c:14:5 in main
+==14000==ABORTING
+

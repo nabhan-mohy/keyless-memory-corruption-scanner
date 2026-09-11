@@ -1,0 +1,148 @@
+"""Database engine, sessions, and domain round-tripping."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+from sqlalchemy.exc import IntegrityError
+
+from kmcs.core import models
+from kmcs.core.config import KMCSConfig
+from kmcs.database.database import Database, build_sqlite_url
+from kmcs.database.models import CampaignRow, CrashRow, TargetRow
+
+
+class TestInitialization:
+    def test_health_check_passes_on_a_fresh_database(self, database: Database) -> None:
+        health = database.health_check()
+
+        assert health.ok is True
+        assert health.tables_missing == []
+        assert health.schema_version == health.expected_schema_version
+        assert health.integrity == "ok"
+        assert health.messages == []
+
+    def test_all_expected_tables_exist(self, database: Database) -> None:
+        present = set(database.health_check().tables_present)
+        assert {
+            "targets",
+            "corpora",
+            "campaigns",
+            "crashes",
+            "findings",
+            "reports",
+        } <= present
+
+    def test_from_config_uses_the_configured_file(self, tmp_path: Path) -> None:
+        config = KMCSConfig(base_dir=tmp_path / "kmcs")
+        db = Database.from_config(config)
+        try:
+            db.initialize()
+            assert db.database_file == config.database_file
+            assert config.database_file.exists()
+        finally:
+            db.dispose()
+
+    def test_initialize_creates_the_parent_directory(self, tmp_path: Path) -> None:
+        target = tmp_path / "deep" / "nested" / "kmcs.sqlite3"
+        db = Database(build_sqlite_url(target))
+        try:
+            db.initialize()
+            assert target.exists()
+        finally:
+            db.dispose()
+
+
+class TestRoundTrip:
+    def test_target_round_trip(self, database: Database) -> None:
+        original = models.Target(
+            name="libpng",
+            description="PNG reference library",
+            source_dir="/src/libpng",
+            build_dir="/build/libpng",
+            compiler="clang-17",
+            build_configuration=models.BuildConfiguration.ASAN_UBSAN,
+            sanitizers=[models.SanitizerKind.ADDRESS, models.SanitizerKind.UNDEFINED],
+            metadata={"license": "libpng-2.0"},
+        )
+
+        with database.session() as session:
+            session.add(TargetRow.from_domain(original))
+
+        with database.session() as session:
+            row = session.get(TargetRow, original.id)
+            assert row is not None
+            restored = row.to_domain()
+
+        assert restored.id == original.id
+        assert restored.name == "libpng"
+        assert restored.source_dir == Path("/src/libpng")
+        assert restored.build_configuration is models.BuildConfiguration.ASAN_UBSAN
+        assert restored.sanitizers == [
+            models.SanitizerKind.ADDRESS,
+            models.SanitizerKind.UNDEFINED,
+        ]
+        assert restored.metadata == {"license": "libpng-2.0"}
+        assert restored.created_at.tzinfo is not None
+
+    def test_crash_round_trip_preserves_evidence_paths(
+        self, database: Database
+    ) -> None:
+        target = models.Target(name="demo")
+        crash = models.Crash(
+            target_id=target.id,
+            input_path="/tmp/corpus/id:000000",
+            artifact_path="/tmp/crashes/id:000000",
+            evidence_path="/tmp/evidence/id:000000.stderr",
+            signal=6,
+            exit_code=134,
+            sanitizer=models.SanitizerKind.ADDRESS,
+            classification=models.CrashClassification.HEAP_BUFFER_OVERFLOW,
+            fingerprint="abc123",
+            stderr_excerpt="ERROR: AddressSanitizer: heap-buffer-overflow",
+        )
+
+        with database.session() as session:
+            session.add(TargetRow.from_domain(target))
+            session.flush()
+            session.add(CrashRow.from_domain(crash))
+
+        with database.session() as session:
+            row = session.get(CrashRow, crash.id)
+            assert row is not None
+            restored = row.to_domain()
+
+        assert restored.evidence_path == Path("/tmp/evidence/id:000000.stderr")
+        assert restored.classification is models.CrashClassification.HEAP_BUFFER_OVERFLOW
+        assert restored.sanitizer is models.SanitizerKind.ADDRESS
+        assert restored.signal == 6
+
+class TestConstraints:
+    def test_foreign_keys_are_enforced(self, database: Database) -> None:
+        campaign = models.Campaign(name="orphan", target_id="missing-target")
+
+        with pytest.raises(IntegrityError):
+            with database.session() as session:
+                session.add(CampaignRow.from_domain(campaign))
+
+    def test_target_names_are_unique(self, database: Database) -> None:
+        with database.session() as session:
+            session.add(TargetRow.from_domain(models.Target(name="duplicate")))
+
+        with pytest.raises(IntegrityError):
+            with database.session() as session:
+                session.add(TargetRow.from_domain(models.Target(name="duplicate")))
+
+    def test_session_rolls_back_on_error(self, database: Database) -> None:
+        with pytest.raises(IntegrityError):
+            with database.session() as session:
+                session.add(TargetRow.from_domain(models.Target(name="rolling")))
+                session.add(TargetRow.from_domain(models.Target(name="rolling")))
+
+        with database.session() as session:
+            from sqlalchemy import select
+
+            names = session.scalars(select(TargetRow.name)).all()
+
+        assert names == []

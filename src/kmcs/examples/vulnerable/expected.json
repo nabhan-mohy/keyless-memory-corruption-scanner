@@ -1,0 +1,11 @@
+{
+  "heap_overflow":     {"classification": "heap-buffer-overflow",   "sanitizer": "address"},
+  "stack_overflow":    {"classification": "stack-buffer-overflow",  "sanitizer": "address"},
+  "global_overflow":   {"classification": "global-buffer-overflow", "sanitizer": "address"},
+  "use_after_free":    {"classification": "use-after-free",         "sanitizer": "address"},
+  "double_free":       {"classification": "double-free",            "sanitizer": "address"},
+  "null_deref":        {"classification": "segmentation-fault",     "sanitizer": "address"},
+  "oob_read":          {"classification": "heap-buffer-overflow",   "sanitizer": "address"},
+  "signed_overflow":   {"classification": "undefined-behavior",     "sanitizer": "undefined"},
+  "memory_leak":       {"classification": "memory-leak",            "sanitizer": "leak"}
+}
