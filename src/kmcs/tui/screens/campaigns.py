@@ -89,3 +89,4 @@ class CampaignsScreen(KMCSListScreen):
             if campaign.id.startswith(prefix):
                 return campaign
         return None
+
