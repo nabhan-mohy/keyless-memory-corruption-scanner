@@ -13,7 +13,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from textual.app import App
-from textual.screen import Screen
 
 from kmcs import __version__
 from kmcs.tui.context import TUIContext
@@ -23,13 +22,7 @@ from kmcs.tui.theme import KMCS_THEME
 
 
 class KMCSApp(App[None]):
-    """The main KMCS terminal application.
-
-    Screens are installed manually in ``_install_screens`` and switched with
-    ``_show``.  We deliberately avoid Textual's automatic ``SCREENS``
-    mechanism and the ``push_screen``/``switch_screen`` API in ``on_mount``,
-    because both can race with Textual's own default screen setup at startup.
-    """
+    """The main KMCS terminal application."""
 
     CSS = """
     Screen {
@@ -62,16 +55,15 @@ class KMCSApp(App[None]):
     SUB_TITLE = "defensive fuzzing and memory-safety research platform"
 
     BINDINGS = [
-        ("1", "show('dashboard')", "Dashboard"),
-        ("2", "show('targets')", "Targets"),
+        ("1", "switch_to('dashboard')", "Dashboard"),
+        ("2", "switch_to('targets')", "Targets"),
         ("r", "refresh", "Refresh"),
         ("q", "quit", "Quit"),
         ("ctrl+c", "quit", "Quit"),
     ]
 
-    # Screen name → class.  Populated into ``_screens`` during ``on_mount``.
-    # Deliberately NOT named ``SCREENS``; Textual reserves that name.
-    KMCS_SCREEN_CLASSES: dict[str, type[Screen]] = {
+    # Screen name → class.  Add entries here as new screens are built.
+    SCREENS: dict[str, type] = {
         "dashboard": DashboardScreen,
         "targets": TargetsScreen,
     }
@@ -79,54 +71,29 @@ class KMCSApp(App[None]):
     def __init__(self, ctx: TUIContext) -> None:
         super().__init__()
         self.ctx = ctx
-        self._screens: dict[str, Screen] = {}
 
     def on_mount(self) -> None:
         self.register_theme(KMCS_THEME)
         self.theme = "kmcs"
-
-        # Install every screen up front.  ``install_screen`` in newer Textual
-        # versions may be awaitable; we do not need to await it because we
-        # only use the resulting screen later.
-        for name, cls in self.KMCS_SCREEN_CLASSES.items():
-            screen = cls()
-            self.install_screen(screen, name=name)
-            self._screens[name] = screen
-
-        # Switch to the initial screen.  ``push_screen`` is safe even when
-        # the default screen is still on the stack — it does not try to pop
-        # a callback.
-        self.push_screen("dashboard")
+        for name, screen_cls in self.SCREENS.items():
+            self.install_screen(screen_cls(), name=name)
+        self.switch_screen("dashboard")
 
     def on_unmount(self) -> None:
         self.ctx.close()
 
     # ------------------------------------------------------------------ actions
 
-    def action_show(self, name: str) -> None:
+    def action_switch_to(self, name: str) -> None:
         """Switch to an installed screen by name."""
-        if name not in self._screens:
-            return
-        if name == self._current_screen_name():
-            return
-        self.switch_screen(name)
+        if name in self.SCREENS:
+            self.switch_screen(name)
 
     def action_refresh(self) -> None:
         """Ask the current screen to refresh its data."""
         screen = self.screen
-        refresh = getattr(screen, "refresh_data", None)
-        if callable(refresh):
-            refresh()
-
-    # ------------------------------------------------------------------ helpers
-
-    def _current_screen_name(self) -> str | None:
-        """Best-effort name of the currently active installed screen."""
-        current = self.screen
-        for name, screen in self._screens.items():
-            if screen is current:
-                return name
-        return None
+        if hasattr(screen, "refresh_data"):
+            screen.refresh_data()  # type: ignore[attr-defined]
 
 
 # ---------------------------------------------------------------------- entry point
