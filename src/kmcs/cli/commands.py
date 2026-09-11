@@ -947,10 +947,19 @@ def _cmd_crash_list(ctx, args, output) -> int:
 
     from kmcs.database.models import CrashRow
 
+    if args.campaign:
+        campaign = _resolve_campaign(ctx, args.campaign)
+        if campaign is None:
+            output.error(f"Campaign not found: {args.campaign}")
+            return ExitCode.NOT_FOUND
+        campaign_id = campaign.id
+    else:
+        campaign_id = None
+
     with ctx.database.session() as session:
         stmt = select(CrashRow).order_by(CrashRow.created_at.desc())
-        if args.campaign:
-            stmt = stmt.where(CrashRow.campaign_id == args.campaign)
+        if campaign_id is not None:
+            stmt = stmt.where(CrashRow.campaign_id == campaign_id)
         if args.classification:
             stmt = stmt.where(CrashRow.classification == args.classification)
         rows = session.scalars(stmt).all()
@@ -1103,12 +1112,17 @@ def _cmd_finding_list(ctx, args, output) -> int:
         findings = [row.to_domain() for row in rows]
 
     if args.campaign:
+        campaign = _resolve_campaign(ctx, args.campaign)
+        if campaign is None:
+            output.error(f"Campaign not found: {args.campaign}")
+            return ExitCode.NOT_FOUND
+
         # Filter by crash membership.
         from kmcs.database.models import CrashRow
 
         with ctx.database.session() as session:
             crash_rows = session.scalars(
-                select(CrashRow).where(CrashRow.campaign_id == args.campaign)
+                select(CrashRow).where(CrashRow.campaign_id == campaign.id)
             ).all()
             crash_ids = {row.id for row in crash_rows}
         findings = [
