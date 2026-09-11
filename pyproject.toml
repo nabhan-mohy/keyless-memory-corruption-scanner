@@ -34,9 +34,13 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
 ]
+tui = [
+    "textual>=0.85",
+]
 
 [project.scripts]
 kmcs = "kmcs.main:main"
+kmcs-tui = "kmcs.tui.app:main"
 
 [project.urls]
 Homepage = "https://github.com/kmcs-project/kmcs"
