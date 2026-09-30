@@ -1,0 +1,32 @@
+# -----------------------------------------------------------------------------
+# docker-compose.yml — one command to bring up a KMCS-ready environment.
+#
+#   docker compose build           # build the image (about 5 minutes first time)
+#   docker compose run --rm kmcs   # run the unit test suite
+#   docker compose run --rm kmcs pytest tests/integration -q -m integration -s
+#   docker compose run --rm kmcs python scripts/demo_campaign.py
+#
+# The `kmcs-data` volume persists the KMCS workspace between runs.  Delete it
+# with `docker compose down -v` to start fresh.
+# -----------------------------------------------------------------------------
+services:
+  kmcs:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: kmcs:latest
+    environment:
+      KMCS_HOME: /var/lib/kmcs
+      # These are read by AFL++ inside the container.  They make it start
+      # cleanly in environments that do not expose a real CPU-governor file.
+      AFL_SKIP_CPUFREQ: "1"
+      AFL_NO_UI: "1"
+      AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES: "1"
+    volumes:
+      - kmcs-data:/var/lib/kmcs
+    working_dir: /opt/kmcs
+    stdin_open: true
+    tty: true
+
+volumes:
+  kmcs-data:
