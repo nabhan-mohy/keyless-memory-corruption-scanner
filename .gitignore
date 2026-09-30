@@ -21,3 +21,17 @@ mypy_cache/
 /corpus/
 /reports/
 /logs/
+
+# Demo lab compiled binaries.
+src/kmcs/examples/vulnerable/double_free
+src/kmcs/examples/vulnerable/global_overflow
+src/kmcs/examples/vulnerable/heap_overflow
+src/kmcs/examples/vulnerable/memory_leak
+src/kmcs/examples/vulnerable/null_deref
+src/kmcs/examples/vulnerable/oob_read
+src/kmcs/examples/vulnerable/signed_overflow
+src/kmcs/examples/vulnerable/stack_overflow
+src/kmcs/examples/vulnerable/use_after_free
+src/kmcs/examples/vulnerable/*_afl
+src/kmcs/examples/vulnerable/*_plain
+src/kmcs/examples/vulnerable/*_plain_asan
